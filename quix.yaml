@@ -27,6 +27,14 @@ deployments:
         description: Kafka topic to send CSV rows to
         required: true
         value: csv-data
+    plugin:
+      embeddedView:
+        enabled: true
+        hideHeader: true
+        default: true
+      sidebarItem:
+        show: true
+        order: 0
 
 # This section describes the Topics of the data pipeline
 topics:
