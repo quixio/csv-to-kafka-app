@@ -53,7 +53,10 @@ async def upload_csv(file: UploadFile = File(...)):
             )
             sent += 1
 
+        producer.flush()
+
     if sent == 0:
         return {"status": "error", "message": "CSV file is empty"}
+
 
     return {"status": "ok", "rows_sent": sent, "topic": topic_name, "filename": file.filename}
