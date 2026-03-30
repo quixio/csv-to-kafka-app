@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV to Kafka</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #0f1117;
+            color: #e1e4e8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            background: #1c1f26;
+            border-radius: 12px;
+            padding: 40px;
+            width: 460px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+        }
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 8px;
+        }
+        .subtitle {
+            color: #8b949e;
+            font-size: 0.9rem;
+            margin-bottom: 28px;
+        }
+        .drop-zone {
+            border: 2px dashed #30363d;
+            border-radius: 8px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+            margin-bottom: 20px;
+        }
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: #58a6ff;
+            background: rgba(88,166,255,0.05);
+        }
+        .drop-zone p {
+            color: #8b949e;
+            margin-bottom: 8px;
+        }
+        .drop-zone .filename {
+            color: #58a6ff;
+            font-weight: 600;
+            margin-top: 12px;
+        }
+        input[type="file"] { display: none; }
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #238636;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover { background: #2ea043; }
+        button:disabled {
+            background: #21262d;
+            color: #484f58;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 16px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            display: none;
+        }
+        .result.success {
+            background: rgba(35,134,54,0.15);
+            border: 1px solid #238636;
+            color: #3fb950;
+            display: block;
+        }
+        .result.error {
+            background: rgba(248,81,73,0.15);
+            border: 1px solid #f85149;
+            color: #f85149;
+            display: block;
+        }
+        .spinner {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>CSV to Kafka</h1>
+        <p class="subtitle">Upload a CSV file to send its rows to Kafka</p>
+
+        <div class="drop-zone" id="dropZone">
+            <p>Drag & drop a CSV file here or click to browse</p>
+            <div class="filename" id="fileName"></div>
+        </div>
+        <input type="file" id="fileInput" accept=".csv">
+
+        <button id="sendBtn" disabled>
+            <span id="btnText">Send to Kafka</span>
+            <div class="spinner" id="spinner"></div>
+        </button>
+
+        <div class="result" id="result"></div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const btnText = document.getElementById('btnText');
+        const spinner = document.getElementById('spinner');
+        const result = document.getElementById('result');
+        const fileName = document.getElementById('fileName');
+        let selectedFile = null;
+
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && file.name.endsWith('.csv')) {
+                selectFile(file);
+            }
+        });
+
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files[0]) selectFile(fileInput.files[0]);
+        });
+
+        function selectFile(file) {
+            selectedFile = file;
+            fileName.textContent = file.name;
+            sendBtn.disabled = false;
+            result.className = 'result';
+            result.style.display = 'none';
+        }
+
+        sendBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+
+            sendBtn.disabled = true;
+            btnText.style.display = 'none';
+            spinner.style.display = 'block';
+            result.className = 'result';
+            result.style.display = 'none';
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            try {
+                const res = await fetch('/upload', { method: 'POST', body: formData });
+                const data = await res.json();
+
+                if (data.status === 'ok') {
+                    result.className = 'result success';
+                    result.textContent = `Sent ${data.rows_sent} rows from "${data.filename}" to topic "${data.topic}"`;
+                } else {
+                    result.className = 'result error';
+                    result.textContent = data.message;
+                }
+            } catch (err) {
+                result.className = 'result error';
+                result.textContent = 'Connection error: ' + err.message;
+            }
+
+            btnText.style.display = 'inline';
+            spinner.style.display = 'none';
+            sendBtn.disabled = false;
+        });
+    </script>
+</body>
+</html>
