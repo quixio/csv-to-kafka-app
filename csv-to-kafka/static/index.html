@@ -180,20 +180,70 @@
             progressContainer.style.display = 'none';
         }
 
-        sendBtn.addEventListener('click', async () => {
+        sendBtn.addEventListener('click', () => {
             if (!selectedFile) return;
 
             sendBtn.disabled = true;
             result.style.display = 'none';
             progressContainer.style.display = 'block';
             progressFill.style.width = '0%';
-            progressText.textContent = 'Starting...';
+            progressText.textContent = 'Uploading...';
 
+            // Generate upload ID client-side so we can poll progress immediately
+            const uploadId = crypto.randomUUID();
             const formData = new FormData();
             formData.append('file', selectedFile);
 
+            // Start upload via XHR (supports upload progress events)
+            const xhr = new XMLHttpRequest();
+
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable) {
+                    const pct = Math.round((e.loaded / e.total) * 100);
+                    progressFill.style.width = (pct * 0.5) + '%';
+                    progressText.textContent = `Uploading... ${pct}%`;
+                }
+            });
+
+            xhr.addEventListener('load', () => {
+                try {
+                    const data = JSON.parse(xhr.responseText);
+                    // Upload finished - show final result
+                    progressFill.style.width = '100%';
+                    progressText.textContent = `Sent ${data.rows_sent.toLocaleString()} rows (100%)`;
+                    setTimeout(() => {
+                        progressContainer.style.display = 'none';
+                        result.className = 'result success';
+                        result.style.display = 'block';
+                        result.textContent = `Done! Sent ${data.rows_sent.toLocaleString()} rows from "${data.filename}" to topic "${data.topic}"`;
+                    }, 500);
+                } catch (err) {
+                    progressContainer.style.display = 'none';
+                    result.className = 'result error';
+                    result.style.display = 'block';
+                    result.textContent = 'Error: ' + xhr.responseText;
+                }
+                sendBtn.disabled = false;
+            });
+
+            xhr.addEventListener('error', () => {
+                progressContainer.style.display = 'none';
+                result.className = 'result error';
+                result.style.display = 'block';
+                result.textContent = 'Connection error';
+                sendBtn.disabled = false;
+            });
+
+            xhr.open('POST', '/upload?upload_id=' + uploadId);
+            xhr.send(formData);
+
+            // Start polling for Kafka sending progress in parallel
+            pollProgress(uploadId);
+        });
+
+        async function pollProgress(uploadId) {
             try {
-                const res = await fetch('/upload', { method: 'POST', body: formData });
+                const res = await fetch('/progress/' + uploadId);
                 const reader = res.body.getReader();
                 const decoder = new TextDecoder();
                 let buffer = '';
@@ -210,30 +260,19 @@
                         if (!line.startsWith('data: ')) continue;
                         const data = JSON.parse(line.slice(6));
 
-                        if (data.status === 'progress') {
-                            progressFill.style.width = data.percent + '%';
+                        if (data.status === 'sending') {
+                            progressFill.style.width = (50 + data.percent * 0.5) + '%';
                             progressText.textContent = `Streaming to Kafka... ${data.rows_sent.toLocaleString()} rows (${data.percent}%)`;
                         } else if (data.status === 'done') {
                             progressFill.style.width = '100%';
                             progressText.textContent = `Sent ${data.rows_sent.toLocaleString()} rows (100%)`;
-                            setTimeout(() => {
-                                progressContainer.style.display = 'none';
-                                result.className = 'result success';
-                                result.style.display = 'block';
-                                result.textContent = `Done! Sent ${data.rows_sent.toLocaleString()} rows from "${data.filename}" to topic "${data.topic}"`;
-                            }, 500);
                         }
                     }
                 }
             } catch (err) {
-                progressContainer.style.display = 'none';
-                result.className = 'result error';
-                result.style.display = 'block';
-                result.textContent = 'Connection error: ' + err.message;
+                // Progress polling failed, upload XHR will handle final state
             }
-
-            sendBtn.disabled = false;
-        });
+        }
     </script>
 </body>
 </html>
