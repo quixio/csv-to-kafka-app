@@ -6,6 +6,11 @@ variables:
     description: Kafka topic to send CSV rows to
     defaultValue: csv-data
     required: true
+  - name: batch_size
+    inputType: FreeText
+    description: Number of rows to send per batch
+    defaultValue: "10000"
+    required: false
 dockerfile: dockerfile
 runEntryPoint: main.py
 defaultFile: main.py

@@ -27,6 +27,11 @@ deployments:
         description: Kafka topic to send CSV rows to
         required: true
         value: csv-data
+      - name: batch_size
+        inputType: FreeText
+        description: Number of rows to send per batch
+        required: false
+        value: "10000"
     plugin:
       embeddedView:
         enabled: true
