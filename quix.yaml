@@ -30,8 +30,7 @@ deployments:
       - name: batch_size
         inputType: FreeText
         description: Number of rows to send per batch
-        required: false
-        value: "10000"
+        value: 1000
     plugin:
       embeddedView:
         enabled: true
