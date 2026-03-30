@@ -170,4 +170,11 @@ async def upload_csv(request: Request):
 
         yield f"data: {json.dumps({'status': 'done', 'rows_sent': sent, 'percent': 100, 'topic': topic_name, 'filename': filename})}\n\n"
 
-    return StreamingResponse(stream_progress(), media_type="text/event-stream")
+    return StreamingResponse(
+        stream_progress(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
