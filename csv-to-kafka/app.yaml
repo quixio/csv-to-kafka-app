@@ -1,0 +1,11 @@
+name: CSV to Kafka
+language: python
+variables:
+  - name: output
+    inputType: OutputTopic
+    description: Kafka topic to send CSV rows to
+    defaultValue: csv-data
+    required: true
+dockerfile: dockerfile
+runEntryPoint: main.py
+defaultFile: main.py
