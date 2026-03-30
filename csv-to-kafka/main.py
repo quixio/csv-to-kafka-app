@@ -51,7 +51,8 @@ async def upload_csv(file: UploadFile = File(...)):
                 except (ValueError, TypeError):
                     value[k] = v
 
-            message = topic.serialize(key=file.filename, value=value)
+            key = os.path.splitext(file.filename)[0]
+            message = topic.serialize(key=key, value=value)
             producer.produce(
                 topic=topic.name,
                 key=message.key,
