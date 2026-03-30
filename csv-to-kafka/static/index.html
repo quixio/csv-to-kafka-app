@@ -183,13 +183,16 @@
 
                 if (data.status === 'ok') {
                     result.className = 'result success';
+                    result.style.display = 'block';
                     result.textContent = `Sent ${data.rows_sent} rows from "${data.filename}" to topic "${data.topic}"`;
                 } else {
                     result.className = 'result error';
+                    result.style.display = 'block';
                     result.textContent = data.message;
                 }
             } catch (err) {
                 result.className = 'result error';
+                result.style.display = 'block';
                 result.textContent = 'Connection error: ' + err.message;
             }
 
