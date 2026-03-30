@@ -69,7 +69,8 @@ async def upload_csv(file: UploadFile = File(...)):
                         value=message.value,
                     )
 
-                producer.flush()
+                    producer.flush()
+                    
                 sent += len(batch)
                 bytes_read = file.file.tell()
                 pct = min(99, round(bytes_read / file_size * 100))
