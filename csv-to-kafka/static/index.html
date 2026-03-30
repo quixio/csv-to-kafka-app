@@ -196,9 +196,10 @@
 
             // Start upload via XHR (supports upload progress events)
             const xhr = new XMLHttpRequest();
+            let kafkaStarted = false;
 
             xhr.upload.addEventListener('progress', (e) => {
-                if (e.lengthComputable) {
+                if (e.lengthComputable && !kafkaStarted) {
                     const pct = Math.round((e.loaded / e.total) * 100);
                     progressFill.style.width = (pct * 0.5) + '%';
                     progressText.textContent = `Uploading... ${pct}%`;
@@ -261,6 +262,7 @@
                         const data = JSON.parse(line.slice(6));
 
                         if (data.status === 'sending') {
+                            kafkaStarted = true;
                             progressFill.style.width = (50 + data.percent * 0.5) + '%';
                             progressText.textContent = `Streaming to Kafka... ${data.rows_sent.toLocaleString()} rows (${data.percent}%)`;
                         } else if (data.status === 'done') {
