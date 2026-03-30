@@ -180,6 +180,8 @@
             progressContainer.style.display = 'none';
         }
 
+        let phase = 'idle'; // 'idle' | 'uploading' | 'sending' | 'done'
+
         sendBtn.addEventListener('click', () => {
             if (!selectedFile) return;
 
@@ -188,20 +190,18 @@
             progressContainer.style.display = 'block';
             progressFill.style.width = '0%';
             progressText.textContent = 'Uploading...';
+            phase = 'uploading';
 
-            // Generate upload ID client-side so we can poll progress immediately
             const uploadId = crypto.randomUUID();
             const formData = new FormData();
             formData.append('file', selectedFile);
 
-            // Start upload via XHR (supports upload progress events)
             const xhr = new XMLHttpRequest();
-            let kafkaStarted = false;
 
             xhr.upload.addEventListener('progress', (e) => {
-                if (e.lengthComputable && !kafkaStarted) {
+                if (e.lengthComputable && phase === 'uploading') {
                     const pct = Math.round((e.loaded / e.total) * 100);
-                    progressFill.style.width = (pct * 0.5) + '%';
+                    progressFill.style.width = pct + '%';
                     progressText.textContent = `Uploading... ${pct}%`;
                 }
             });
@@ -209,7 +209,7 @@
             xhr.addEventListener('load', () => {
                 try {
                     const data = JSON.parse(xhr.responseText);
-                    // Upload finished - show final result
+                    phase = 'done';
                     progressFill.style.width = '100%';
                     progressText.textContent = `Sent ${data.rows_sent.toLocaleString()} rows (100%)`;
                     setTimeout(() => {
@@ -238,7 +238,7 @@
             xhr.open('POST', '/upload?upload_id=' + uploadId);
             xhr.send(formData);
 
-            // Start polling for Kafka sending progress in parallel
+            // Poll Kafka progress in parallel
             pollProgress(uploadId);
         });
 
@@ -261,18 +261,15 @@
                         if (!line.startsWith('data: ')) continue;
                         const data = JSON.parse(line.slice(6));
 
-                        if (data.status === 'sending') {
-                            kafkaStarted = true;
-                            progressFill.style.width = (50 + data.percent * 0.5) + '%';
+                        if (data.status === 'sending' && phase !== 'done') {
+                            phase = 'sending';
+                            progressFill.style.width = data.percent + '%';
                             progressText.textContent = `Streaming to Kafka... ${data.rows_sent.toLocaleString()} rows (${data.percent}%)`;
-                        } else if (data.status === 'done') {
-                            progressFill.style.width = '100%';
-                            progressText.textContent = `Sent ${data.rows_sent.toLocaleString()} rows (100%)`;
                         }
                     }
                 }
             } catch (err) {
-                // Progress polling failed, upload XHR will handle final state
+                // Progress polling failed, XHR will handle final state
             }
         }
     </script>
