@@ -24,14 +24,6 @@ async def upload_csv(file: UploadFile = File(...)):
     if not file.filename.endswith(".csv"):
         return {"status": "error", "message": "Only CSV files are allowed"}
 
-    content = await file.read()
-    text = content.decode("utf-8")
-    reader = csv.DictReader(io.StringIO(text))
-
-    rows = list(reader)
-    if not rows:
-        return {"status": "error", "message": "CSV file is empty"}
-
     topic_name = os.environ.get("output", "csv-data")
 
     quix_app = Application(
@@ -39,11 +31,13 @@ async def upload_csv(file: UploadFile = File(...)):
         auto_create_topics=True,
     )
     topic = quix_app.topic(name=topic_name, value_serializer="json")
+    key = os.path.splitext(file.filename)[0]
 
     sent = 0
     with quix_app.get_producer() as producer:
-        for row in rows:
-            # Convert numeric strings to floats where possible
+        # Stream the file line by line to avoid loading everything into memory
+        reader = csv.DictReader(io.TextIOWrapper(file.file, encoding="utf-8"))
+        for row in reader:
             value = {}
             for k, v in row.items():
                 try:
@@ -51,7 +45,6 @@ async def upload_csv(file: UploadFile = File(...)):
                 except (ValueError, TypeError):
                     value[k] = v
 
-            key = os.path.splitext(file.filename)[0]
             message = topic.serialize(key=key, value=value)
             producer.produce(
                 topic=topic.name,
@@ -59,5 +52,8 @@ async def upload_csv(file: UploadFile = File(...)):
                 value=message.value,
             )
             sent += 1
+
+    if sent == 0:
+        return {"status": "error", "message": "CSV file is empty"}
 
     return {"status": "ok", "rows_sent": sent, "topic": topic_name, "filename": file.filename}
