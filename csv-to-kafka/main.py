@@ -3,11 +3,9 @@ import csv
 import io
 import json
 import uuid
-import asyncio
-from threading import Thread
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse
 from quixstreams import Application
 from dotenv import load_dotenv
 
@@ -179,26 +177,9 @@ async def upload_csv(request: Request):
 
 @app.get("/progress/{upload_id}")
 async def progress(upload_id: str):
-    async def event_stream():
-        while True:
-            info = uploads.get(upload_id)
-            if not info:
-                yield f"data: {json.dumps({'status': 'error', 'message': 'Unknown upload'})}\n\n"
-                break
-
-            yield f"data: {json.dumps(info)}\n\n"
-
-            if info["status"] == "done":
-                uploads.pop(upload_id, None)
-                break
-
-            await asyncio.sleep(0.5)
-
-    return StreamingResponse(
-        event_stream(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-        },
-    )
+    info = uploads.get(upload_id)
+    if not info:
+        return {"status": "unknown"}
+    if info["status"] == "done":
+        uploads.pop(upload_id, None)
+    return info
